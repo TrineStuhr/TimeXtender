@@ -1,0 +1,58 @@
+# Trigger ODX Transfer
+
+$TriggerJobsInOrder = "ADF AW2019" 
+$PollInterval = 2500
+
+$ApiKey = "50499-ORG-0Nd5jOLx3bRXhlpyIBMlU"
+$OcpApimSubscriptionKey = "650e106b5b1d4e9d93cf83aed01dc598"
+$BaseUrl = "https://apim-txportal-prod.azure-api.net/public"
+
+
+$headers = New-Object "System.Collections.Generic.Dictionary[[String], [String]]"
+$headers.Add("ApiKey", $ApiKey)
+$headers.Add("Ocp-Apim-Subscription-Key", $OcpApimSubscriptionKey)
+
+$JobIds = Invoke-RestMethod "$BaseUrl/jobs" -Method "GET" -Headers $headers
+
+foreach ($JobNameToTrigger in $TriggerJobsInOrder) {
+    
+    "Current job: '$JobNameToTrigger'"
+
+    $JobId = $($JobIds | Where-Object { $_.Name -eq $JobNameToTrigger }).id
+
+    # verify job is not running
+    $response = Invoke-RestMethod "$BaseUrl/jobs/$JobId/status" -Method 'GET' -Headers $headers
+    $response
+
+    if ($response.Status -ne 0) {
+
+        "Job '$JobNameToTrigger' already running; waiting for current execution to finish. Will not trigger again."
+
+    }
+    else {
+    
+        # trigger execution
+        $TriggeredJob = Invoke-RestMethod "$BaseUrl/jobs/$JobId/execute" -Method 'POST' -Headers $headers
+        $TriggeredJob
+    
+    }
+
+    do {
+
+        Start-Sleep -Milliseconds $PollInterval
+        $response = Invoke-RestMethod "$BaseUrl/jobs/$JobId/status" -Method 'GET' -Headers $headers
+        $response
+
+    } while 
+    (
+
+        $response.Status -ne 0
+
+
+
+    
+    )
+    
+    "Execution of '$JobNameToTrigger' finished."
+
+}
